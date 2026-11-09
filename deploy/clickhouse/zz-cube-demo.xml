@@ -29,6 +29,13 @@
             <max_execution_time>180</max_execution_time>
             <max_memory_usage>6000000000</max_memory_usage>
             <max_threads>6</max_threads>
+            <!-- Cube Cloud reads pre-aggregation partitions over the internet and
+                 consumes the stream slower than ClickHouse writes it. The default 30 s
+                 send timeout breaks these builds. -->
+            <send_timeout>600</send_timeout>
+            <http_send_timeout>600</http_send_timeout>
+            <receive_timeout>600</receive_timeout>
+            <http_receive_timeout>600</http_receive_timeout>
         </cube>
     </profiles>
 </clickhouse>
