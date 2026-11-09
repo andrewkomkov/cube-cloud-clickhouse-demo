@@ -1,0 +1,216 @@
+cubes:
+  - name: orders
+    sql_table: demo.orders
+    title: Orders
+    description: One row per order. Revenue measures exclude cancelled orders.
+
+    joins:
+      - name: customers
+        relationship: many_to_one
+        sql: "{CUBE}.customer_id = {customers}.customer_id"
+
+    dimensions:
+      - name: order_id
+        sql: order_id
+        type: number
+        primary_key: true
+        public: true
+      - name: created_at
+        sql: created_at
+        type: time
+      - name: status
+        sql: status
+        type: string
+      - name: sales_channel
+        sql: sales_channel
+        type: string
+      - name: device
+        sql: device
+        type: string
+      - name: payment_method
+        sql: payment_method
+        type: string
+      - name: marketing_channel
+        sql: marketing_channel
+        type: string
+      - name: promo_code
+        sql: "if(promo_code = '', '(none)', promo_code)"
+        type: string
+      - name: has_promo
+        sql: "promo_code != ''"
+        type: boolean
+      - name: shipping_method
+        sql: shipping_method
+        type: string
+      - name: items_count
+        sql: items_count
+        type: number
+      - name: order_size
+        title: Order size bucket
+        type: string
+        case:
+          when:
+            - sql: "{CUBE}.total_amount < 50"
+              label: "< $50"
+            - sql: "{CUBE}.total_amount < 150"
+              label: "$50–150"
+            - sql: "{CUBE}.total_amount < 500"
+              label: "$150–500"
+            - sql: "{CUBE}.total_amount < 1500"
+              label: "$500–1.5k"
+          else:
+            label: "$1.5k+"
+      - name: total_amount
+        sql: total_amount
+        type: number
+        format: currency
+
+    measures:
+      - name: count
+        title: Orders
+        type: count
+      - name: valid_orders
+        title: Valid orders
+        type: count
+        filters:
+          - sql: "{CUBE}.status != 'cancelled'"
+      - name: revenue
+        title: Net revenue
+        description: Total paid by customers incl. shipping, excluding cancelled orders.
+        sql: total_amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.status != 'cancelled'"
+      - name: gross_sales
+        sql: subtotal
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.status != 'cancelled'"
+      - name: discounts
+        sql: discount_amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.status != 'cancelled'"
+      - name: shipping_revenue
+        sql: shipping_amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.status != 'cancelled'"
+      - name: cogs
+        title: COGS
+        sql: cost_amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.status != 'cancelled'"
+      - name: gross_profit
+        sql: "{revenue} - {cogs} - {shipping_revenue}"
+        type: number
+        format: currency
+      - name: gross_margin
+        sql: "{gross_profit} / nullIf({revenue} - {shipping_revenue}, 0)"
+        type: number
+        format: percent
+      - name: aov
+        title: Average order value
+        sql: "{revenue} / nullIf({valid_orders}, 0)"
+        type: number
+        format: currency
+      - name: units
+        sql: units
+        type: sum
+      - name: returned_orders
+        type: count
+        filters:
+          - sql: "{CUBE}.status = 'returned'"
+      - name: cancelled_orders
+        type: count
+        filters:
+          - sql: "{CUBE}.status = 'cancelled'"
+      - name: return_rate
+        sql: "{returned_orders} / nullIf({count}, 0)"
+        type: number
+        format: percent
+      - name: cancellation_rate
+        sql: "{cancelled_orders} / nullIf({count}, 0)"
+        type: number
+        format: percent
+      - name: promo_orders
+        type: count
+        filters:
+          - sql: "{CUBE}.promo_code != ''"
+      - name: promo_share
+        sql: "{promo_orders} / nullIf({count}, 0)"
+        type: number
+        format: percent
+      - name: buyers
+        title: Unique buyers
+        sql: customer_id
+        type: count_distinct_approx
+      - name: revenue_7d_rolling
+        title: Net revenue, 7-day rolling
+        sql: total_amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.status != 'cancelled'"
+        rolling_window:
+          trailing: 7 day
+      - name: revenue_ytd
+        title: Net revenue, YTD
+        sql: total_amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.status != 'cancelled'"
+        rolling_window:
+          type: to_date
+          granularity: year
+
+    pre_aggregations:
+      # Covers the sales dashboards: day x channel x geography x segment.
+      - name: sales_daily
+        external: true
+        measures:
+          - count
+          - valid_orders
+          - revenue
+          - gross_sales
+          - discounts
+          - shipping_revenue
+          - cogs
+          - units
+          - returned_orders
+          - cancelled_orders
+          - promo_orders
+        dimensions:
+          - status
+          - sales_channel
+          - device
+          - payment_method
+          - marketing_channel
+          - shipping_method
+          - customers.country
+          - customers.region
+          - customers.segment
+          - customers.loyalty_tier
+        time_dimension: created_at
+        granularity: day
+        partition_granularity: month
+        refresh_key:
+          every: 1 hour
+          incremental: true
+          update_window: 7 day
+        build_range_start:
+          sql: SELECT toDateTime('2023-01-01 00:00:00')
+        build_range_end:
+          sql: SELECT now()
+        indexes:
+          - name: by_channel
+            columns:
+              - sales_channel
+              - customers.region

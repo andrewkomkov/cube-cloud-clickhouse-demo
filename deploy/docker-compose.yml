@@ -1,0 +1,99 @@
+# Cube demo on dedic (/opt/cube-demo).
+# Secrets are not stored on disk: deploy.sh pipes them from the `secret` store
+# into the environment of `docker compose up`.
+name: cube-demo
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.7-alpine
+    container_name: cube-demo-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_PASSWORD: ${CH_ADMIN_PASSWORD:?}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      CH_CUBE_PASSWORD: ${CH_CUBE_PASSWORD:?}
+      TZ: UTC
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - ./clickhouse/zz-cube-demo.xml:/etc/clickhouse-server/users.d/zz-cube-demo.xml:ro
+      - ./seed:/seed:ro
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    mem_limit: 10g
+    networks: [default, edge]
+
+  # ---- self-hosted Cube (Cube Core) for comparison with Cube Cloud ----
+  cubestore_router:
+    image: cubejs/cubestore:v1.6.77
+    container_name: cube-demo-cubestore-router
+    restart: unless-stopped
+    environment:
+      CUBESTORE_SERVER_NAME: cubestore_router:9999
+      CUBESTORE_META_PORT: "9999"
+      CUBESTORE_WORKERS: cubestore_worker_1:10001,cubestore_worker_2:10002
+      CUBESTORE_REMOTE_DIR: /cube/data
+    volumes: [cubestore:/cube/data]
+
+  cubestore_worker_1:
+    image: cubejs/cubestore:v1.6.77
+    container_name: cube-demo-cubestore-worker-1
+    restart: unless-stopped
+    environment:
+      CUBESTORE_SERVER_NAME: cubestore_worker_1:10001
+      CUBESTORE_WORKER_PORT: "10001"
+      CUBESTORE_META_ADDR: cubestore_router:9999
+      CUBESTORE_WORKERS: cubestore_worker_1:10001,cubestore_worker_2:10002
+      CUBESTORE_REMOTE_DIR: /cube/data
+    volumes: [cubestore:/cube/data]
+    depends_on: [cubestore_router]
+
+  cubestore_worker_2:
+    image: cubejs/cubestore:v1.6.77
+    container_name: cube-demo-cubestore-worker-2
+    restart: unless-stopped
+    environment:
+      CUBESTORE_SERVER_NAME: cubestore_worker_2:10002
+      CUBESTORE_WORKER_PORT: "10002"
+      CUBESTORE_META_ADDR: cubestore_router:9999
+      CUBESTORE_WORKERS: cubestore_worker_1:10001,cubestore_worker_2:10002
+      CUBESTORE_REMOTE_DIR: /cube/data
+    volumes: [cubestore:/cube/data]
+    depends_on: [cubestore_router]
+
+  cube:
+    image: cubejs/cube:v1.6.77
+    container_name: cube-demo-cube
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4400:4000"    # REST/GraphQL API + Playground (ssh -L 4400:localhost:4400 dedic)
+      - "127.0.0.1:15432:15432"  # SQL API (Postgres wire)
+    environment:
+      CUBEJS_DB_TYPE: clickhouse
+      CUBEJS_DB_HOST: clickhouse
+      CUBEJS_DB_PORT: "8123"
+      CUBEJS_DB_NAME: demo
+      CUBEJS_DB_USER: cube
+      CUBEJS_DB_PASS: ${CH_CUBE_PASSWORD:?}
+      CUBEJS_DB_CLICKHOUSE_READONLY: "true"
+      CUBEJS_API_SECRET: ${CUBEJS_API_SECRET:?}
+      CUBEJS_DEV_MODE: "true"
+      CUBEJS_CUBESTORE_HOST: cubestore_router
+      CUBEJS_EXTERNAL_DEFAULT: "true"
+      CUBEJS_SCHEDULED_REFRESH_DEFAULT: "true"
+      CUBEJS_SCHEDULED_REFRESH_TIMEZONES: UTC
+      CUBEJS_PG_SQL_PORT: "15432"
+      CUBEJS_SQL_USER: cube
+      CUBEJS_SQL_PASSWORD: ${CUBEJS_API_SECRET:?}
+      CUBEJS_TELEMETRY: "false"
+    volumes:
+      - ./model:/cube/conf/model:ro
+    depends_on: [clickhouse, cubestore_worker_1, cubestore_worker_2]
+
+volumes:
+  ch-data:
+  cubestore:
+
+networks:
+  edge:
+    external: true
+    name: mp_airflow_airflow_net

@@ -1,0 +1,125 @@
+cubes:
+  - name: web_events
+    sql_table: demo.web_events
+    title: Web & app events (10% sample)
+
+    joins:
+      - name: products
+        relationship: many_to_one
+        sql: "{CUBE}.product_id = {products}.product_id"
+
+    dimensions:
+      - name: event_id
+        sql: event_id
+        type: number
+        primary_key: true
+      - name: event_time
+        sql: event_time
+        type: time
+      - name: event_type
+        sql: event_type
+        type: string
+      - name: page_type
+        sql: page_type
+        type: string
+      - name: utm_source
+        sql: utm_source
+        type: string
+      - name: utm_medium
+        sql: utm_medium
+        type: string
+      - name: device_type
+        sql: device_type
+        type: string
+      - name: browser
+        sql: browser
+        type: string
+      - name: country
+        sql: country
+        type: string
+      - name: is_logged_in
+        sql: "customer_id != 0"
+        type: boolean
+
+    measures:
+      - name: events
+        type: count
+      - name: sessions
+        description: Each session starts with exactly one first page view (step 1), so this count is additive.
+        type: count
+        filters:
+          - sql: "{CUBE}.event_id % 16 = 1"
+      - name: visitors
+        title: Logged-in visitors
+        description: Approximate distinct count (ClickHouse uniq). Not in the rollup, so it always queries ClickHouse.
+        sql: "if(customer_id = 0, NULL, customer_id)"
+        type: count_distinct_approx
+      - name: page_views
+        type: count
+        filters:
+          - sql: "{CUBE}.event_type = 'page_view'"
+      - name: product_view_sessions
+        description: A session has at most one product_view event.
+        type: count
+        filters:
+          - sql: "{CUBE}.event_type = 'product_view'"
+      - name: cart_sessions
+        description: A session has at most one add_to_cart event.
+        type: count
+        filters:
+          - sql: "{CUBE}.event_type = 'add_to_cart'"
+      - name: checkout_sessions
+        description: A session has at most one checkout_start event.
+        type: count
+        filters:
+          - sql: "{CUBE}.event_type = 'checkout_start'"
+      - name: purchase_sessions
+        description: A session has at most one purchase event.
+        type: count
+        filters:
+          - sql: "{CUBE}.event_type = 'purchase'"
+      - name: conversion_rate
+        title: Session conversion rate
+        sql: "{purchase_sessions} / nullIf({sessions}, 0)"
+        type: number
+        format: percent
+      - name: cart_to_purchase_rate
+        sql: "{purchase_sessions} / nullIf({cart_sessions}, 0)"
+        type: number
+        format: percent
+      - name: web_revenue
+        sql: revenue
+        type: sum
+        format: currency
+
+    pre_aggregations:
+      - name: funnel_daily
+        external: true
+        measures:
+          - events
+          - sessions
+          - page_views
+          - product_view_sessions
+          - cart_sessions
+          - checkout_sessions
+          - purchase_sessions
+          - web_revenue
+        dimensions:
+          - utm_source
+          - utm_medium
+          - device_type
+          - country
+        time_dimension: event_time
+        granularity: day
+        partition_granularity: month
+        refresh_key:
+          every: 1 hour
+          incremental: true
+          update_window: 3 day
+        build_range_start:
+          sql: SELECT toDateTime('2023-01-01 00:00:00')
+        build_range_end:
+          sql: SELECT now()
+        indexes:
+          - name: by_source
+            columns: [utm_source, device_type]

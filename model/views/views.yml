@@ -1,0 +1,106 @@
+views:
+  - name: sales
+    title: Sales
+    description: Orders with customer attributes. Start here for revenue, AOV, returns and promo analysis.
+    cubes:
+      - join_path: orders
+        includes:
+          - created_at
+          - status
+          - sales_channel
+          - device
+          - payment_method
+          - marketing_channel
+          - promo_code
+          - has_promo
+          - shipping_method
+          - order_size
+          - count
+          - valid_orders
+          - revenue
+          - gross_sales
+          - discounts
+          - cogs
+          - gross_profit
+          - gross_margin
+          - aov
+          - units
+          - return_rate
+          - cancellation_rate
+          - promo_share
+          - buyers
+          - revenue_7d_rolling
+          - revenue_ytd
+      - join_path: orders.customers
+        prefix: true
+        includes:
+          - country
+          - city
+          - region
+          - segment
+          - acquisition_channel
+          - age_band
+          - gender
+          - loyalty_tier
+          - signup_cohort
+
+  - name: product_performance
+    title: Product performance
+    description: Order lines by product, category and brand.
+    cubes:
+      - join_path: order_items
+        includes:
+          - created_at
+          - is_returned
+          - lines
+          - units_sold
+          - product_revenue
+          - product_cogs
+          - product_margin
+          - product_margin_pct
+          - returned_units
+          - unit_return_rate
+          - avg_selling_price
+      - join_path: order_items.products
+        includes:
+          - category
+          - subcategory
+          - brand
+          - product_name
+          - price_band
+          - is_private_label
+      - join_path: order_items.orders
+        prefix: true
+        includes:
+          - sales_channel
+          - status
+
+  - name: customer_360
+    title: Customer 360
+    description: Customer base, cohorts and lifetime value tiers.
+    cubes:
+      - join_path: customers
+        includes: "*"
+
+  - name: web_funnel
+    title: Web funnel
+    description: Clickstream funnel (10% sample) by traffic source and device.
+    cubes:
+      - join_path: web_events
+        includes: "*"
+        excludes:
+          - event_id
+      - join_path: web_events.products
+        prefix: true
+        includes:
+          - category
+          - brand
+
+  - name: marketing
+    title: Paid marketing
+    description: Spend, clicks and efficiency by channel, platform and campaign.
+    cubes:
+      - join_path: marketing_spend
+        includes: "*"
+        excludes:
+          - row_key

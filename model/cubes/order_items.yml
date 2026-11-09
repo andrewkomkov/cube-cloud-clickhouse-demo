@@ -1,0 +1,91 @@
+cubes:
+  - name: order_items
+    sql_table: demo.order_items
+    title: Order lines
+
+    joins:
+      - name: products
+        relationship: many_to_one
+        sql: "{CUBE}.product_id = {products}.product_id"
+      - name: orders
+        relationship: many_to_one
+        sql: "{CUBE}.order_id = {orders}.order_id"
+
+    dimensions:
+      - name: line_key
+        sql: "concat(toString(order_id), '-', toString(line_number))"
+        type: string
+        primary_key: true
+      - name: created_at
+        sql: created_at
+        type: time
+      - name: is_returned
+        sql: "is_returned = 1"
+        type: boolean
+
+    measures:
+      - name: lines
+        type: count
+      - name: units_sold
+        sql: quantity
+        type: sum
+      - name: product_revenue
+        title: Product revenue (net of discounts)
+        sql: net_amount
+        type: sum
+        format: currency
+      - name: product_cogs
+        sql: cost_amount
+        type: sum
+        format: currency
+      - name: product_margin
+        sql: "{product_revenue} - {product_cogs}"
+        type: number
+        format: currency
+      - name: product_margin_pct
+        sql: "{product_margin} / nullIf({product_revenue}, 0)"
+        type: number
+        format: percent
+      - name: returned_units
+        sql: quantity
+        type: sum
+        filters:
+          - sql: "{CUBE}.is_returned = 1"
+      - name: unit_return_rate
+        sql: "{returned_units} / nullIf({units_sold}, 0)"
+        type: number
+        format: percent
+      - name: avg_selling_price
+        sql: "{product_revenue} / nullIf({units_sold}, 0)"
+        type: number
+        format: currency
+
+    pre_aggregations:
+      - name: product_daily
+        external: true
+        measures:
+          - lines
+          - units_sold
+          - product_revenue
+          - product_cogs
+          - returned_units
+        dimensions:
+          - products.category
+          - products.subcategory
+          - products.brand
+          - products.price_band
+          - products.is_private_label
+        time_dimension: created_at
+        granularity: day
+        partition_granularity: month
+        refresh_key:
+          every: 1 hour
+          incremental: true
+          update_window: 7 day
+        build_range_start:
+          sql: SELECT toDateTime('2023-01-01 00:00:00')
+        build_range_end:
+          sql: SELECT now()
+        indexes:
+          - name: by_category
+            columns: [products.category, products.brand]

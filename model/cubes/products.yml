@@ -1,0 +1,57 @@
+cubes:
+  - name: products
+    sql_table: demo.products
+    title: Products
+
+    dimensions:
+      - name: product_id
+        sql: product_id
+        type: number
+        primary_key: true
+        public: true
+      - name: sku
+        sql: sku
+        type: string
+      - name: product_name
+        sql: product_name
+        type: string
+      - name: category
+        sql: category
+        type: string
+      - name: subcategory
+        sql: subcategory
+        type: string
+      - name: brand
+        sql: brand
+        type: string
+      - name: is_private_label
+        sql: "is_private_label = 1"
+        type: boolean
+      - name: list_price
+        sql: list_price
+        type: number
+        format: currency
+      - name: price_band
+        type: string
+        case:
+          when:
+            - sql: "{CUBE}.list_price < 25"
+              label: "< $25"
+            - sql: "{CUBE}.list_price < 100"
+              label: "$25–100"
+            - sql: "{CUBE}.list_price < 500"
+              label: "$100–500"
+          else:
+            label: "$500+"
+      - name: launched_on
+        sql: toDateTime(launched_on)
+        type: time
+
+    measures:
+      - name: count
+        title: Products
+        type: count
+      - name: avg_list_price
+        sql: list_price
+        type: avg
+        format: currency

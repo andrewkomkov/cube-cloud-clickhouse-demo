@@ -1,0 +1,62 @@
+cubes:
+  - name: marketing_spend
+    sql_table: demo.marketing_spend
+    title: Marketing spend
+
+    dimensions:
+      - name: row_key
+        sql: "concat(toString(date), channel, platform, campaign)"
+        type: string
+        primary_key: true
+      - name: date
+        sql: toDateTime(date)
+        type: time
+      - name: channel
+        sql: channel
+        type: string
+      - name: platform
+        sql: platform
+        type: string
+      - name: campaign
+        sql: campaign
+        type: string
+
+    measures:
+      - name: spend
+        sql: spend
+        type: sum
+        format: currency
+      - name: impressions
+        sql: impressions
+        type: sum
+      - name: clicks
+        sql: clicks
+        type: sum
+      - name: ctr
+        title: CTR
+        sql: "{clicks} / nullIf({impressions}, 0)"
+        type: number
+        format: percent
+      - name: cpc
+        title: CPC
+        sql: "{spend} / nullIf({clicks}, 0)"
+        type: number
+        format: currency
+      - name: cpm
+        title: CPM
+        sql: "{spend} / nullIf({impressions}, 0) * 1000"
+        type: number
+        format: currency
+
+    pre_aggregations:
+      - name: spend_daily
+        external: true
+        measures: [spend, impressions, clicks]
+        dimensions: [channel, platform, campaign]
+        time_dimension: date
+        granularity: day
+        refresh_key:
+          every: 1 hour
+        indexes:
+          - name: by_channel
+            columns: [channel, platform]

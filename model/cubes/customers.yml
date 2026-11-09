@@ -1,0 +1,112 @@
+cubes:
+  - name: customers
+    sql_table: demo.customers
+    title: Customers
+
+    dimensions:
+      - name: customer_id
+        sql: customer_id
+        type: number
+        primary_key: true
+        public: true
+      - name: full_name
+        sql: full_name
+        type: string
+      - name: email
+        sql: email
+        type: string
+      - name: signup_date
+        sql: toDateTime(signup_date)
+        type: time
+      - name: signup_cohort
+        title: Signup cohort (month)
+        sql: "formatDateTime(signup_date, '%Y-%m')"
+        type: string
+      - name: country
+        sql: country
+        type: string
+        meta:
+          geo: country
+      - name: city
+        sql: city
+        type: string
+      - name: region
+        sql: region
+        type: string
+      - name: segment
+        sql: segment
+        type: string
+      - name: acquisition_channel
+        sql: acquisition_channel
+        type: string
+      - name: age_band
+        sql: age_band
+        type: string
+      - name: gender
+        sql: gender
+        type: string
+      - name: loyalty_tier
+        sql: loyalty_tier
+        type: string
+      - name: is_marketing_opt_in
+        sql: "is_marketing_opt_in = 1"
+        type: boolean
+      - name: lifetime_revenue
+        title: Lifetime revenue
+        description: Sum of net revenue of the customer's non-cancelled orders.
+        sql: "{orders.revenue}"
+        type: number
+        format: currency
+        sub_query: true
+      - name: lifetime_orders
+        sql: "{orders.valid_orders}"
+        type: number
+        sub_query: true
+      - name: value_tier
+        type: string
+        case:
+          when:
+            - sql: "{CUBE.lifetime_revenue} >= 10000"
+              label: Whale ($10k+)
+            - sql: "{CUBE.lifetime_revenue} >= 2500"
+              label: High ($2.5k–10k)
+            - sql: "{CUBE.lifetime_revenue} >= 500"
+              label: Mid ($500–2.5k)
+            - sql: "{CUBE.lifetime_revenue} > 0"
+              label: Low (< $500)
+          else:
+            label: No purchases
+
+    measures:
+      - name: count
+        title: Customers
+        type: count
+      - name: opted_in
+        type: count
+        filters:
+          - sql: "{CUBE}.is_marketing_opt_in = 1"
+      - name: opt_in_rate
+        sql: "{opted_in} / nullIf({count}, 0)"
+        type: number
+        format: percent
+
+    pre_aggregations:
+      - name: signups_daily
+        external: true
+        measures:
+          - count
+          - opted_in
+        dimensions:
+          - country
+          - region
+          - segment
+          - acquisition_channel
+          - loyalty_tier
+        time_dimension: signup_date
+        granularity: day
+        partition_granularity: year
+        refresh_key:
+          every: 1 day
+        indexes:
+          - name: by_region
+            columns: [region, segment]
