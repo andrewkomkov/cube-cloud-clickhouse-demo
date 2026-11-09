@@ -77,3 +77,10 @@ for f in 01_schema 02_dimensions 03_facts 04_web_marketing; do
   docker exec cube-demo-clickhouse clickhouse-client --multiquery --queries-file /seed/$f.sql
 done
 ```
+
+## Cube Cloud runtime
+
+- Deployment: "ClickHouse Retail Demo" in GCP `europe-west3`.
+- Source: this repository over SSH (read-only deploy key). A GitHub webhook
+  starts a build on each push to `main`.
+- Environment: the variables in the table above, set in the deployment settings.
