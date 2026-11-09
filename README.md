@@ -56,6 +56,7 @@ ClickHouse notes:
 | `CUBEJS_DB_USER` | `cube` (read-only on `demo.*`) |
 | `CUBEJS_DB_PASS` | from the secret store, not in this repository |
 | `CUBEJS_DB_CLICKHOUSE_READONLY` | `true` |
+| `CUBEJS_API_SECRET` | required in Cube Cloud too; from the secret store |
 
 ## Self-hosted runtime (`deploy/`)
 
