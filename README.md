@@ -59,7 +59,7 @@ ClickHouse notes:
 
 ## Self-hosted runtime (`deploy/`)
 
-`deploy/docker-compose.yml` runs ClickHouse, Cube API (v1.6.77) and a Cube Store
+`deploy/docker-compose.yml` runs ClickHouse, Cube API (v1.8.20) and a Cube Store
 cluster (router + 2 workers). `deploy/deploy.sh` syncs the files and starts the stack.
 The script reads passwords from the local `secret` store. It does not write them to disk.
 

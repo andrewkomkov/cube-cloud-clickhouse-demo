@@ -24,7 +24,7 @@ services:
 
   # ---- self-hosted Cube (Cube Core) for comparison with Cube Cloud ----
   cubestore_router:
-    image: cubejs/cubestore:v1.6.77
+    image: cubejs/cubestore:v1.8.20
     container_name: cube-demo-cubestore-router
     restart: unless-stopped
     environment:
@@ -35,7 +35,7 @@ services:
     volumes: [cubestore:/cube/data]
 
   cubestore_worker_1:
-    image: cubejs/cubestore:v1.6.77
+    image: cubejs/cubestore:v1.8.20
     container_name: cube-demo-cubestore-worker-1
     restart: unless-stopped
     environment:
@@ -48,7 +48,7 @@ services:
     depends_on: [cubestore_router]
 
   cubestore_worker_2:
-    image: cubejs/cubestore:v1.6.77
+    image: cubejs/cubestore:v1.8.20
     container_name: cube-demo-cubestore-worker-2
     restart: unless-stopped
     environment:
@@ -61,7 +61,7 @@ services:
     depends_on: [cubestore_router]
 
   cube:
-    image: cubejs/cube:v1.6.77
+    image: cubejs/cube:v1.8.20
     container_name: cube-demo-cube
     restart: unless-stopped
     ports:
